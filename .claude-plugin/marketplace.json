@@ -24,7 +24,7 @@
       "name": "steerings-specs-generator",
       "source": "./plugins/steerings-specs-generator/",
       "description": "Steerings specs generator Skill",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": {
         "name": "Timur Khakhalev",
         "email": "timur.khakhalev@gmail.com"
