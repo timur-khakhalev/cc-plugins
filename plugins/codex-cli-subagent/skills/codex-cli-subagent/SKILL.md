@@ -10,7 +10,7 @@ filename="$(openssl rand -hex 4)"
 codex exec "count the total number of lines of code in this project" 2>>/tmp/${filename}.log
 ```
 
-In non-interactive mode, `codex exec` does not ask for command or edit approvals. By default it runs in `read-only` mode, so it cannot edit files or run commands that require network access.
+In non-interactive mode, `codex exec` runs without a TUI and follows the configured approval/sandbox policy (flags and/or `~/.codex/config.toml`). By default it runs in `read-only` mode, so it cannot edit files or run commands that require network access.
 
 When you use this skill, follow these logging rules:
 
@@ -20,11 +20,18 @@ When you use this skill, follow these logging rules:
 
 Since the `codex exec` may run couple hours, set a generous timeout so long-running subagent work can complete:
 
-- Use a timeout of at least 20 minutes for the `Run` (or `Bash`) tool unless the user explicitly requests a shorter limit.
+- Use a timeout of at least 60 minutes for the `Run` (or `Bash`) tool unless the user explicitly requests other limit.
 
 Use this skill when you want a focused helper agent (for refactors, audits, scripted operations, or scans) while keeping your main session and context intact.
 
 Use `codex exec --full-auto` to allow file edits. Use `codex exec --sandbox danger-full-access` to allow edits and networked commands, but only when the user clearly permits this level of access.
+
+### Practical gotchas
+
+- Prefer stdin for long prompts to avoid shell quoting/globbing issues: `codex exec - < /tmp/prompt.md`.
+- If you need built-in web search, pass `--search` (otherwise assume “no web tool” and use `curl`/repo sources).
+- Don’t run nested subagents (avoid calling `codex exec` from inside a `codex exec` session).
+- Consider `--output-last-message /tmp/${filename}.out` to capture the final answer without scraping logs.
 
 ### Key Flags
 
@@ -36,6 +43,7 @@ Use `codex exec --full-auto` to allow file edits. Use `codex exec --sandbox dang
   - `read-only`: No file edits, no networked commands
   - `workspace-write`: Can edit files in the workspace
   - `danger-full-access`: No sandboxing; full access (use with care)
+- `--search`: Enable built-in web search tool
 - `--config`: Pass config variables:
   - `model_reasoning_effort`: Model reasoning effort: `low`, `medium`, `high`;
 
@@ -55,7 +63,7 @@ filename="$(openssl rand -hex 4)"
 codex exec --cd /path/to/project "Using this repo's AGENTS.md instructions, refactor the test helpers for clarity and consistency" 2>>/tmp/${filename}.log
 
 filename="$(openssl rand -hex 4)"
-codex exec --model gpt-5.1-codex-max --sandbox workspace-write --config model_reasoning_effort=medium < /tmp/some-big-prompt.md 2>>/tmp/${filename}.log
+codex exec --model gpt-5.1-codex-max --sandbox workspace-write --config model_reasoning_effort=medium - < /tmp/some-big-prompt.md 2>>/tmp/${filename}.log
 
 # For audits / deep analysis
 filename="$(openssl rand -hex 4)"
