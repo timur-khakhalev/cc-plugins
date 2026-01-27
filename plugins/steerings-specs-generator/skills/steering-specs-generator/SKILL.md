@@ -2,6 +2,7 @@
 name: steering-specs-generator
 description: Extract tacit engineering knowledge through guided interviews and generate structured steerings. Use when user mentions "steerings", "tacit knowledge", "conventions", "engineering practices", "interview", or wants to document team/project knowledge. Also activates when user asks for "steerings for X", "document X conventions", "continue steerings", "resume interview", or wants to extract knowledge about a specific topic. Supports reviewing and transforming existing steerings to standard format. Auto-detects existing sessions and offers to continue incomplete ones.
 allowed-tools: Read, Write, AskUserQuestion, Glob, Task
+allowed-tools-codex: exec_command, apply_patch, request_user_input, spawn_agent, send_input, wait, close_agent
 ---
 
 # Steering Specs Generator
@@ -16,7 +17,26 @@ Supports **predefined packs** (8 areas) and **custom topics** (user-specified).
 
 - [pack-reference.md](pack-reference.md) — Topic areas and questions
 - [steering-template.md](steering-template.md) — Output format
-- Access to AskUserQuestion and Task tools
+- Access to an "ask user" tool and a "run subagent task" tool
+
+## Tooling Compatibility (Claude Code ↔ Codex CLI)
+
+This skill was originally authored for **Claude Code** tool names (e.g. `AskUserQuestion`, `Task`). To keep it portable, treat these as *capabilities* and map them to your runtime:
+
+- **Ask user (blocking input)**
+  - Claude Code: `AskUserQuestion`
+  - Codex CLI: `request_user_input`
+  - If choice options aren't supported by your tool, present choices in text and ask for an index/label.
+- **Run subagents / parallel work**
+  - Claude Code: `Task` (+ its output/wait mechanism)
+  - Codex CLI: `spawn_agent` + `wait` (+ optionally `send_input` to clarify) + `close_agent` when done
+- **Repo scanning / file IO**
+  - Claude Code: `Read` / `Write` / `Glob`
+  - Codex CLI: `exec_command` for search/listing, `apply_patch` for edits (or your runtime’s native file tools)
+
+In the rest of this doc:
+- `ASK_USER(...)` means "use your environment’s ask-user tool".
+- "Task agent" means "spawn a subagent and wait for its output".
 
 ## Mode Selection
 
@@ -39,7 +59,7 @@ Before configuring paths, check if sessions already exist in the repo:
    - `sessions/`
    - `docs/sessions/`
 
-2. **If sessions found**, present AskUserQuestion:
+2. **If sessions found**, present `ASK_USER(...)`:
 ```yaml
 questions:
   - question: "Found existing session(s). Continue or start fresh?"
@@ -66,7 +86,7 @@ questions:
 
 ### Step 0a: Configure Output Paths
 
-Ask user to confirm paths using AskUserQuestion:
+Ask user to confirm paths using `ASK_USER(...)`:
 
 ```yaml
 questions:
@@ -92,13 +112,13 @@ questions:
 
 **Custom topic detected** (patterns: "steerings for X", "document X conventions"):
 - If clear → Generate `packId`, `packName`, `packType: "custom"`, `customTopicDescription`
-- If broad → Clarify with AskUserQuestion (aspects, level, scope)
+- If broad → Clarify with `ASK_USER(...)` (aspects, level, scope)
 
 **No custom topic** → Present 8 predefined packs as multi-select:
 
 ### Step 1a: Choose Interview Mode
 
-Ask user to select interview mode:
+Ask user to select interview mode using `ASK_USER(...)`:
 
 ```yaml
 questions:
@@ -159,11 +179,13 @@ Continuing session: {sessionId}
 **When running packs in parallel:**
 - Launch all pack agents as background tasks
 - Capture all task IDs
-- Wait for all to complete using TaskOutput tool
+- Wait for all to complete (Claude: Task output/wait; Codex: `wait`)
 - Display progress as packs finish
 
 Spawn a **Task agent per pack** - run all in parallel for faster execution.
-Use `run_in_background: true` for each Task call, then wait for all to complete.
+Claude Code: use `run_in_background: true` for each `Task` call, then wait for all to complete.
+
+Codex CLI: `spawn_agent` for each pack, capture agent IDs, then `wait` for completion (optionally streaming progress as each finishes).
 
 ```yaml
 subagent_type: "general-purpose"
@@ -178,7 +200,7 @@ prompt: |
   - Custom Description: {customTopicDescription}  # only if custom
 
   ## Context Files
-  - Pack Reference: .claude/skills/steering-specs-generator/pack-reference.md
+  - Pack Reference: pack-reference.md
   - Repo Context: {repoContextReportPath}
   - Docs & Conventions: {docsConventionsReportPath}
 
@@ -219,7 +241,7 @@ prompt: |
     - Present all questions in a single markdown code block
     - User responds with all answers at once (e.g., "A, B, A, C, B")
   If interviewMode is "interactive":
-    - Present via AskUserQuestion (max 4 per call)
+    - Present via `ASK_USER(...)` (max 4 questions per call if your runtime supports batching)
 
   ### 4. Classify Responses
   For each response, classify as:
@@ -267,7 +289,7 @@ Wait for all pack interview agents to complete. Each writes its results to `{ses
 
 ### Step 5: Generate Outputs
 
-Delegate to general-purpose subagent, choose Opus model:
+Delegate to general-purpose subagent (use the strongest available model in your runtime):
 
 ```yaml
 subagent_type: "general-purpose"
@@ -280,7 +302,7 @@ prompt: |
 
   Docs report: {docsConventionsReportPath}
   Repo report: {repoContextReportPath}
-  Template: .claude/skills/steering-specs-generator/steering-template.md
+  Template: steering-template.md
 
   Output paths: {steeringsPath}, {backlogPath}
 

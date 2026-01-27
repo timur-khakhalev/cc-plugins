@@ -32,7 +32,7 @@ flowchart TD
         subgraph TopicSelection["Topic Selection"]
             S1 --> T1{Custom topic detected?}
             T1 -->|Yes| T2{Topic clear?}
-            T2 -->|No| T3[Clarify scope with AskUserQuestion]
+            T2 -->|No| T3[Clarify scope with ASK_USER]
             T3 --> T4[Generate custom topic definition]
             T2 -->|Yes| T4
             T1 -->|No| T5[Show 8 predefined packs]
@@ -84,7 +84,7 @@ flowchart TD
 
         S4a --> S5
 
-        subgraph Generation["Step 5: Generate Outputs (Opus model)"]
+        subgraph Generation["Step 5: Generate Outputs (strong model)"]
             S5[Delegate to general-purpose Agent]
             S5 --> G1[Read session directory]
             S5 --> G2[Read context reports]
